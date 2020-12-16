@@ -22,7 +22,7 @@ from torch import topk
 import numpy as np
 import skimage.transform
 import time
-
+from tqdm import tqdm
 import copy
 import os
 print(f'Running on CUDA:{torch.cuda.is_available()}')
@@ -50,7 +50,8 @@ image_datasets = {x: datasets.ImageFolder(os.path.join(data_dir, x),
                                           data_transforms[x])
                   for x in ['train', 'val']}
 dataloaders = {x: torch.utils.data.DataLoader(image_datasets[x], batch_size=64,
-                                             shuffle=True, num_workers=0)
+                                             shuffle=True, num_workers=0,
+                                             pin_memory= torch.cuda.is_available())
               for x in ['train', 'val']}
 dataset_sizes = {x: len(image_datasets[x]) for x in ['train', 'val']}
 class_names = image_datasets['train'].classes
@@ -104,7 +105,7 @@ def train_model(model, criterion, optimizer, scheduler, num_epochs=25):
     for epoch in range(num_epochs):
         print('Epoch {}/{}'.format(epoch, num_epochs - 1))
         print('-' * 10)
-
+        epochSince = time.time()
         # Each epoch has a training and validation phase
         for phase in ['train', 'val']:
             if phase == 'train':
@@ -116,7 +117,8 @@ def train_model(model, criterion, optimizer, scheduler, num_epochs=25):
             running_corrects = 0
 
             # Iterate over data.
-            for inputs, labels in dataloaders[phase]:
+            for inputs, labels in tqdm(dataloaders[phase]):
+            
                 inputs = inputs.to(device)
                 labels = labels.to(device)
 
@@ -151,7 +153,10 @@ def train_model(model, criterion, optimizer, scheduler, num_epochs=25):
             if phase == 'val' and epoch_acc > best_acc:
                 best_acc = epoch_acc
                 best_model_wts = copy.deepcopy(model.state_dict())
-
+            #print epoch time 
+            time_elapsed = time.time() - epochSince
+            print('Epoch complete in {:.0f}m {:.0f}s'.format(
+            time_elapsed // 60, time_elapsed % 60))
         print()
 
     time_elapsed = time.time() - since
@@ -190,4 +195,4 @@ def visualize_model(model, num_images=6):
 model_ft = train_model(model_ft, criterion, optimizer_ft, exp_lr_scheduler,
                        num_epochs=25)
 
-torch.save(model_ft.state_dict(),'')
+torch.save(model_ft.state_dict(), os.getcwd()+'/model.pth')
